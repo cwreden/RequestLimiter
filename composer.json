@@ -1,0 +1,11 @@
+{
+    "name": "cwreden/request-limiter",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "cwreden",
+            "email": "christian.wreden@googlemail.com"
+        }
+    ],
+    "require": {}
+}
