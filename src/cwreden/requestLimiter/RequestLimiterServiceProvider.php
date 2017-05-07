@@ -3,8 +3,10 @@
 
 namespace cwreden\requestLimiter;
 
+use Pimple\Container;
+use Pimple\ServiceProviderInterface;
+use Silex\Api\BootableProviderInterface;
 use Silex\Application;
-use Silex\ServiceProviderInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -15,39 +17,39 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * TODO exclude routes or check only selected routes
  */
-class RequestLimiterServiceProvider implements ServiceProviderInterface
+class RequestLimiterServiceProvider implements ServiceProviderInterface, BootableProviderInterface
 {
     /**
-     * Registers services on the given app.
+     * Registers services on the given container.
      *
      * This method should only be used to configure services and parameters.
      * It should not get services.
      *
-     * @param Application $app An Application instance
+     * @param Container $pimple A container instance
      */
-    public function register(Application $app)
+    public function register(Container $pimple)
     {
-        if (!isset($app[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS])) {
-            $app[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS] = array();
+        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS])) {
+            $pimple[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS] = array();
         }
         
-        if (!isset($app[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS])) {
-            $app[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS] = array();
+        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS])) {
+            $pimple[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS] = array();
         }
 
-        if (!isset($app[RequestLimiterConfig::REQUEST_LIMIT])) {
-            $app[RequestLimiterConfig::REQUEST_LIMIT] = 1000;
+        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT])) {
+            $pimple[RequestLimiterConfig::REQUEST_LIMIT] = 1000;
         }
 
-        if (!isset($app[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT])) {
-            $app[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT] = 10000;
+        if (!isset($pimple[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT])) {
+            $pimple[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT] = 10000;
         }
 
-        if (!isset($app[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL])) {
-            $app[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL] = 3600;
+        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL])) {
+            $pimple[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL] = 3600;
         }
         
-        $app[RequestLimiterServices::RATE_LIMITER] = function ($pimple) {
+        $pimple[RequestLimiterServices::RATE_LIMITER] = function ($pimple) {
             return new RateLimiter(
                 $pimple['session'],
                 $pimple[RequestLimiterConfig::REQUEST_LIMIT],
