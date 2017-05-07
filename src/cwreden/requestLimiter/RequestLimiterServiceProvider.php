@@ -47,7 +47,7 @@ class RequestLimiterServiceProvider implements ServiceProviderInterface
             $app[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL] = 3600;
         }
         
-        $app[RequestLimiterServices::RATE_LIMITER] = $app->share(function ($pimple) {
+        $app[RequestLimiterServices::RATE_LIMITER] = function ($pimple) {
             return new RateLimiter(
                 $pimple['session'],
                 $pimple[RequestLimiterConfig::REQUEST_LIMIT],
@@ -56,7 +56,7 @@ class RequestLimiterServiceProvider implements ServiceProviderInterface
                 $pimple[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS],
                 $pimple[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS]
             );
-        });
+        };
     }
 
     /**

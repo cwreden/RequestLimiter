@@ -1,18 +1,22 @@
 {
     "name": "cwreden/request-limiter",
     "license": "MIT",
+    "type": "library",
+    "description": "Request limiting for silex",
     "authors": [
         {
             "name": "cwreden",
             "email": "christian.wreden@googlemail.com"
         }
     ],
+    "keywords": ["limit","request","silex"],
+    "homepage": "http://cwreden.de/lab",
     "require": {
-        "silex/silex": "^1.3"
+        "silex/silex": "2.1.0"
     },
     "autoload": {
-        "psr-0": {
-            "cwreden": "src/"
+        "psr-4": {
+            "cwreden\\": "src/cwreden"
         }
     }
 }
