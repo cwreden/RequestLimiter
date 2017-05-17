@@ -3,6 +3,8 @@
 
 namespace cwreden\requestLimiter;
 
+use cwreden\requestLimiter\exception\RequestLimitExceededException;
+
 /**
  * Class RequestRateInformation
  * @package cwreden\requestLimiter
@@ -106,10 +108,17 @@ class RequestRateInformation
     }
 
     /**
-     * TODO right place???
+     *
      */
     public function increaseUsed()
     {
+        if ($this->getLimit() === 0) {
+            return;
+        }
+
+        if ($this->getRemaining() <= 0) {
+            throw new RequestLimitExceededException($this);
+        }
         $this->used++;
     }
 

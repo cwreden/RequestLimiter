@@ -3,12 +3,13 @@
 
 namespace cwreden\requestLimiter;
 
+use cwreden\requestLimiter\cache\SessionCache;
 use Pimple\Container;
 use Pimple\ServiceProviderInterface;
-use Silex\Api\BootableProviderInterface;
-use Silex\Application;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
+use Silex\Api\EventListenerProviderInterface;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\HttpFoundation\Session\Attribute\AttributeBag;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 
 /**
@@ -17,7 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * TODO exclude routes or check only selected routes
  */
-class RequestLimiterServiceProvider implements ServiceProviderInterface, BootableProviderInterface
+class RequestLimiterServiceProvider implements ServiceProviderInterface, EventListenerProviderInterface
 {
     /**
      * Registers services on the given container.
@@ -29,82 +30,62 @@ class RequestLimiterServiceProvider implements ServiceProviderInterface, Bootabl
      */
     public function register(Container $pimple)
     {
-        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS])) {
-            $pimple[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS] = array();
-        }
-        
-        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS])) {
-            $pimple[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS] = array();
+        if (!isset($pimple[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT])) {
+            $pimple[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT] = 100;
         }
 
-        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT])) {
-            $pimple[RequestLimiterConfig::REQUEST_LIMIT] = 1000;
+        if (!isset($pimple[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT_AUTHENTICATED])) {
+            $pimple[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT_AUTHENTICATED] = 10000;
         }
 
-        if (!isset($pimple[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT])) {
-            $pimple[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT] = 10000;
+        if (!isset($pimple[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT_RESET_INTERVAL])) {
+            $pimple[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT_RESET_INTERVAL] = 3600;
         }
 
-        if (!isset($pimple[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL])) {
-            $pimple[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL] = 3600;
-        }
-        
-        $pimple[RequestLimiterServices::RATE_LIMITER] = function ($pimple) {
-            return new RateLimiter(
-                $pimple['session'],
-                $pimple[RequestLimiterConfig::REQUEST_LIMIT],
-                $pimple[RequestLimiterConfig::AUTHENTICATED_REQUEST_LIMIT],
-                $pimple[RequestLimiterConfig::REQUEST_LIMIT_RESET_INTERVAL],
-                $pimple[RequestLimiterConfig::REQUEST_LIMIT_SECURED_URIS],
-                $pimple[RequestLimiterConfig::REQUEST_LIMIT_EXCLUDED_URIS]
+
+        $pimple[RequestLimiterServices::DEFAULT_CONFIGURATION] = function (Container $container) {
+            return new Configuration(
+                $container[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT],
+                $container[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT_AUTHENTICATED],
+                $container[RequestLimiterConfigurations::DEFAULT_REQUEST_LIMIT_RESET_INTERVAL]
+            );
+        };
+
+        $pimple->extend('session', function ($session) {
+            /** @var SessionInterface $session */
+            $requestLimiterBag = new AttributeBag(SessionCache::CACHE_STORAGE_KEY);
+            $requestLimiterBag->setName(SessionCache::CACHE_BAG_NAME);
+            $session->registerBag($requestLimiterBag);
+
+            return $session;
+        });
+
+
+        $pimple[RequestLimiterServices::CACHE_SESSION] = function (Container $container) {
+            return new SessionCache(
+                $container['session']
+            );
+        };
+
+        $pimple['requestLimiter.map'] = function () {
+            return new RequestLimiterMap();
+        };
+
+        $pimple[RequestLimiterServices::LIMITER] = function (Container $container) {
+            return new RequestLimiter(
+                $container['requestLimiter.map'],
+                $container[RequestLimiterServices::CACHE_SESSION],
+                $container[RequestLimiterServices::DEFAULT_CONFIGURATION]
             );
         };
     }
 
     /**
-     * Bootstraps the application.
-     *
-     * This method is called after all services are registered
-     * and should be used for "dynamic" configuration (whenever
-     * a service must be requested).
-     * @param Application $app
+     * @param Container $app
+     * @param EventDispatcherInterface $dispatcher
      */
-    public function boot(Application $app)
+    public function subscribe(Container $app, EventDispatcherInterface $dispatcher)
     {
-        $app->before(function (Request $request) use ($app) {
-            $pathInfo = $request->getPathInfo();
-
-            /** @var RateLimiter $rateLimiter */
-            $rateLimiter = $app[RequestLimiterServices::RATE_LIMITER];
-
-            try {
-                $rateLimiter->increaseUriUsage($pathInfo);
-            } catch (RequestLimitExceededException $e) {
-                $requestRateInformation = $e->getRequestRateInformation();
-                $app->abort(403, $e->getMessage(), array(
-                    'X-RequestLimit-Limit' => $requestRateInformation->getLimit(),
-                    'X-RequestLimit-Remaining' => $requestRateInformation->getRemaining(),
-                    'X-RequestLimit-Reset' => $requestRateInformation->getResetAt(),
-                ));
-            }
-        }, 128);
-
-        $app->after(function (Request $request, Response $response) use ($app) {
-            $pathInfo = $request->getPathInfo();
-
-            /** @var RateLimiter $rateLimiter */
-            $rateLimiter = $app[RequestLimiterServices::RATE_LIMITER];
-            $rateLimitInformation = $rateLimiter->get($pathInfo);
-
-            if ($rateLimitInformation->getLimit() === -1) {
-                return;
-            }
-
-            $response->headers->add(array(
-                'X-RequestLimit-Limit' => $rateLimitInformation->getLimit(),
-                'X-RequestLimit-Remaining' => $rateLimitInformation->getRemaining(),
-                'X-RequestLimit-Reset' => $rateLimitInformation->getResetAt(),
-            ));
-        }, Application::LATE_EVENT);
+        $dispatcher->addSubscriber($app[RequestLimiterServices::LIMITER]);
     }
 }

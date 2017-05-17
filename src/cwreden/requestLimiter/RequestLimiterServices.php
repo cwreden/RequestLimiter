@@ -6,5 +6,7 @@ namespace cwreden\requestLimiter;
 
 class RequestLimiterServices
 {
-    const RATE_LIMITER = 'requestLimiter.rate_limiter';
+    const DEFAULT_CONFIGURATION = 'requestLimiter.defaultConfiguration';
+    const CACHE_SESSION = 'requestLimiter.cache.session';
+    const LIMITER = 'requestLimiter';
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace cwreden\requestLimiter;
+namespace cwreden\requestLimiter\exception;
 
 
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;

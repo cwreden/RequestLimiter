@@ -1,8 +1,10 @@
 <?php
 
 
-namespace cwreden\requestLimiter;
+namespace cwreden\requestLimiter\exception;
 
+
+use cwreden\requestLimiter\RequestRateInformation;
 
 class RequestLimitExceededException extends RequestLimiterException
 {
